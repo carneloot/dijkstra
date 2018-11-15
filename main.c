@@ -146,6 +146,12 @@ int main(int argc, char *argv[]) {
 
   initGrafo(grafo, vertices, arestas);
 
+  FILE *arqGrafo = fopen("grafo.dot", "w");
+
+  GrafoD_t.generate_dot(grafo, arqGrafo);
+
+  fclose(arqGrafo);
+
   Lista caminho = dijkstra(grafo, "0", argv[1], get_distancia_aresta);
   
   // Printar as distancias
