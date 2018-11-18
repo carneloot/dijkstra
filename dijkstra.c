@@ -5,6 +5,7 @@
 #include <float.h>
 
 #include "hash.h"
+#include "pqueue.h"
 
 #define LOG_FILE 1
 #define LOG_STDOUT 1
@@ -115,7 +116,7 @@ static Lista gerarCaminho(DVInfo target) {
 /**
  * Funcao do Dijkstra em si. Baseado no algoritmo encontrado no site do Geeks for Geeks
  */
-Lista dijkstra(GrafoD grafo, char *origem, char *destino, double (*get_dist_aresta)(void *aresta_info)) {
+Lista dijkstraHash(GrafoD grafo, char *origem, char *destino, double (*get_dist_aresta)(void *aresta_info)) {
   char **labels = GrafoD_t.get_all_vertices(grafo);
   HashTable vertices = getVertices(labels, GrafoD_t.total_vertices(grafo), origem);
   free(labels);
@@ -192,4 +193,60 @@ Lista dijkstra(GrafoD grafo, char *origem, char *destino, double (*get_dist_ares
   HashTable_t.destroy(vertices, free, 0);
 
   return caminho;
+}
+
+Lista dijkstraPriority(GrafoD grafo, char *origem, char *destino, double (*get_dist_aresta)(void *aresta_info)) {
+  char **labels = GrafoD_t.get_all_vertices(grafo);
+  HashTable vertices = getVertices(labels, GrafoD_t.total_vertices(grafo), origem);
+  free(labels);
+  
+  LOG_PRINT(LOG_FILE, "Dijkstra: gerando caminho de \"%s\" ate \"%s\".", origem, destino);
+
+  PQueue fila = pq_create(HashTable_t.length(vertices));
+
+  DVInfo inicial = HashTable_t.get(vertices, origem);
+  DVInfo target  = HashTable_t.get(vertices, destino);
+
+  pq_insert(fila, inicial->distancia, inicial);
+
+  // Enquanto a fila nao estiver vazia
+  while (pq_getsize(fila) > 0) {
+    DVInfo menorDistancia = pq_extractmin(fila);
+
+    if (menorDistancia == target)
+      break;
+
+    Lista adjacentes = GrafoD_t.adjacentes(grafo, menorDistancia->label);
+
+    for (Posic it = Lista_t.get_first(adjacentes); it != NULL; it = Lista_t.get_next(adjacentes, it)) {
+      char *labelAdjacente = Lista_t.get(adjacentes, it);
+      
+      DVInfo adjacente = HashTable_t.get(vertices, labelAdjacente);
+
+      void *infoAresta = GrafoD_t.get_info_aresta(grafo, menorDistancia->label, labelAdjacente);
+
+      double newDist = menorDistancia->distancia + get_dist_aresta(infoAresta);
+
+      if (newDist < adjacente->distancia) {
+        adjacente->distancia = newDist;
+        adjacente->anterior = menorDistancia;
+        pq_insert(fila, newDist, adjacente);
+      }
+    }
+
+    Lista_t.destruir(adjacentes, NULL);
+
+  }
+
+  pq_destroy(fila, NULL);
+
+  Lista caminho = gerarCaminho(target);
+
+  HashTable_t.destroy(vertices, free, 0);
+
+  return caminho;
+}
+
+Lista dijkstra(GrafoD grafo, char *origem, char *destino, double (*get_dist_aresta)(void *aresta_info)) {
+  return dijkstraPriority(grafo, origem, destino, get_dist_aresta);
 }
